@@ -278,7 +278,7 @@ exports.handler = async (event) => {
 
                 `உதாரணம்:\n` +
 
-                `<code>2779919</code>\n\n` +
+                `<code>2180279</code>\n\n` +
 
                 `📷 Profile photo மற்றும் Profile விவரங்கள் கிடைக்கும்.\n\n` +
 
@@ -845,12 +845,12 @@ function formatProfileCaption(
     ) {
 
         doshamText =
-            "No 🚫";
+            "இல்லை 🚫";
 
     } else {
 
         doshamText =
-            "Ullathu ✅";
+            "உள்ளது ✅";
     }
 
 
