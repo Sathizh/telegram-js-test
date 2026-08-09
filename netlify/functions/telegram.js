@@ -5,11 +5,6 @@
 const NITHRA_API_URL =
     "https://app.nithramatrimony.net/api/getfullview";
 
-
-// ============================================================
-// CONFIGURATION
-// ============================================================
-
 const API_TIMEOUT_MS = 15000;
 const TELEGRAM_TIMEOUT_MS = 15000;
 
@@ -55,6 +50,7 @@ exports.handler = async (event) => {
         const webhookSecret =
             process.env.TELEGRAM_WEBHOOK_SECRET;
 
+
         if (webhookSecret) {
 
             const receivedSecret =
@@ -64,6 +60,7 @@ exports.handler = async (event) => {
                 event.headers?.[
                     "X-Telegram-Bot-Api-Secret-Token"
                 ];
+
 
             if (
                 !receivedSecret ||
@@ -92,10 +89,13 @@ exports.handler = async (event) => {
 
         let update;
 
+
         try {
 
             update =
-                JSON.parse(event.body || "{}");
+                JSON.parse(
+                    event.body || "{}"
+                );
 
         } catch (error) {
 
@@ -145,6 +145,7 @@ exports.handler = async (event) => {
         const chatId =
             message.chat?.id;
 
+
         if (!chatId) {
 
             console.error(
@@ -173,6 +174,12 @@ exports.handler = async (event) => {
 
         const allowedUsers =
             getAllowedTelegramUsers();
+
+
+        console.log(
+            "Allowed users configured:",
+            allowedUsers.length
+        );
 
 
         if (
@@ -229,7 +236,7 @@ exports.handler = async (event) => {
 
 
         // ====================================================
-        // GET PROFILE ID
+        // GET MESSAGE TEXT
         // ====================================================
 
         const givenId =
@@ -237,9 +244,68 @@ exports.handler = async (event) => {
 
 
         console.log(
-            "Profile ID:",
+            "Message:",
             givenId
         );
+
+
+        // ====================================================
+        // GET TELEGRAM USER NAME
+        // ====================================================
+
+        const firstName =
+            message.from?.first_name ||
+            "there";
+
+
+        // ====================================================
+        // HANDLE /START
+        // ====================================================
+
+        if (
+            givenId === "/start" ||
+            givenId.startsWith("/start ")
+        ) {
+
+            const welcomeMessage =
+                `👋 <b>வணக்கம் ${escapeHtml(firstName)}!</b>\n\n` +
+
+                `இந்த Bot மூலம் Profile ID-ஐ பயன்படுத்தி Profile விவரங்களை பெறலாம்.\n\n` +
+
+                `📌 <b>எப்படி பயன்படுத்துவது?</b>\n\n` +
+
+                `Profile ID-ஐ மட்டும் அனுப்பவும்.\n\n` +
+
+                `உதாரணம்:\n` +
+
+                `<code>2779919</code>\n\n` +
+
+                `📷 Profile photo மற்றும் Profile விவரங்கள் கிடைக்கும்.\n\n` +
+
+                `🔯 Jathagam image இருந்தால் அதுவும் அனுப்பப்படும்.\n\n` +
+
+                `ℹ️ Profile ID-ஐ அனுப்பி தொடங்குங்கள்.`;
+
+
+            await sendTelegramMessage(
+                chatId,
+                welcomeMessage
+            );
+
+
+            console.log(
+                "✅ Welcome message sent"
+            );
+
+
+            return {
+                statusCode: 200,
+
+                body: JSON.stringify({
+                    ok: true,
+                }),
+            };
+        }
 
 
         // ====================================================
@@ -263,7 +329,9 @@ exports.handler = async (event) => {
         }
 
 
-        if (!/^\d+$/.test(givenId)) {
+        if (
+            !/^\d+$/.test(givenId)
+        ) {
 
             await sendTelegramMessage(
                 chatId,
@@ -320,31 +388,38 @@ exports.handler = async (event) => {
 
         let response;
 
+
         try {
 
-            response = await fetchWithTimeout(
-                `${NITHRA_API_URL}?lib_v_code=17&langID=en&v_code=4&app_via=Mat_iOS_DYNAMIC`,
-                {
-                    method: "POST",
+            response =
+                await fetchWithTimeout(
 
-                    headers: {
-                        "Accept": "*/*",
+                    `${NITHRA_API_URL}?lib_v_code=17&langID=en&v_code=4&app_via=Mat_iOS_DYNAMIC`,
 
-                        "Authorization":
-                            `Bearer ${bearerToken}`,
+                    {
+                        method: "POST",
 
-                        "Content-Type":
-                            "application/json; charset=utf-8",
+                        headers: {
+                            "Accept": "*/*",
+
+                            "Authorization":
+                                `Bearer ${bearerToken}`,
+
+                            "Content-Type":
+                                "application/json; charset=utf-8",
+                        },
+
+                        body: JSON.stringify({
+                            loadId:
+                                Number(givenId),
+
+                            searchMobile:
+                                givenId,
+                        }),
                     },
 
-                    body: JSON.stringify({
-                        loadId: Number(givenId),
-                        searchMobile: givenId,
-                    }),
-                },
-
-                API_TIMEOUT_MS
-            );
+                    API_TIMEOUT_MS
+                );
 
         } catch (error) {
 
@@ -405,6 +480,7 @@ exports.handler = async (event) => {
         // ====================================================
 
         let result;
+
 
         try {
 
@@ -521,8 +597,7 @@ exports.handler = async (event) => {
                 );
 
 
-                // If Telegram cannot send the photo,
-                // send the profile as normal text.
+                // Send caption as fallback
 
                 const fallbackResult =
                     await sendTelegramMessage(
@@ -653,7 +728,7 @@ exports.handler = async (event) => {
 
 
         // Return 200 so Telegram doesn't repeatedly
-        // send the same update.
+        // retry the same update.
 
         return {
             statusCode: 200,
@@ -690,10 +765,6 @@ function getAllowedTelegramUsers() {
 function formatProfileCaption(
     profile
 ) {
-
-    // --------------------------------------------------------
-    // BASIC VALUES
-    // --------------------------------------------------------
 
     const name =
         profile.name || "N/A";
@@ -741,10 +812,9 @@ function formatProfileCaption(
         profile.having_dosham || "N/A";
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // MARITAL STATUS
-    // Only Divorced gets warning emoji
-    // --------------------------------------------------------
+    // ========================================================
 
     let maritalStatusText =
         maritalStatus;
@@ -761,11 +831,9 @@ function formatProfileCaption(
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // DOSHAM
-    // No = No 🚫
-    // Anything else = Ullathu ✅
-    // --------------------------------------------------------
+    // ========================================================
 
     let doshamText;
 
@@ -786,11 +854,12 @@ function formatProfileCaption(
     }
 
 
-    // --------------------------------------------------------
-    // TELEGRAM HTML CAPTION
-    // --------------------------------------------------------
+    // ========================================================
+    // TELEGRAM HTML
+    // ========================================================
 
     return (
+
         `👤 <b>${escapeHtml(name)}</b>\n\n` +
 
         `🎂 <b>வயது:</b> ${escapeHtml(age)}\n` +
@@ -827,14 +896,6 @@ function formatProfileCaption(
 // ============================================================
 // CONVERT IMAGE VALUE TO ARRAY
 // ============================================================
-//
-// Handles:
-//
-// "url1"
-// "url1,url2"
-// ["url1", "url2"]
-//
-// ============================================================
 
 function getImageUrls(
     value
@@ -845,7 +906,7 @@ function getImageUrls(
     }
 
 
-    // API returns an array
+    // API returns array
 
     if (
         Array.isArray(value)
@@ -878,7 +939,7 @@ function getImageUrls(
 
 
 // ============================================================
-// SEND TELEGRAM TEXT MESSAGE
+// SEND TELEGRAM MESSAGE
 // ============================================================
 
 async function sendTelegramMessage(
@@ -921,13 +982,19 @@ async function sendTelegramMessage(
                     },
 
                     body: JSON.stringify({
-                        chat_id: chatId,
 
-                        text: text,
+                        chat_id:
+                            chatId,
 
-                        parse_mode: "HTML",
+                        text:
+                            text,
 
-                        disable_web_page_preview: true,
+                        parse_mode:
+                            "HTML",
+
+                        disable_web_page_preview:
+                            true,
+
                     }),
                 },
 
@@ -947,6 +1014,7 @@ async function sendTelegramMessage(
 
         return result;
 
+
     } catch (error) {
 
         console.error(
@@ -960,7 +1028,7 @@ async function sendTelegramMessage(
 
 
 // ============================================================
-// SEND PROFILE PHOTO + CAPTION
+// SEND PROFILE PHOTO
 // ============================================================
 
 async function sendTelegramPhoto(
@@ -1004,13 +1072,19 @@ async function sendTelegramPhoto(
                     },
 
                     body: JSON.stringify({
-                        chat_id: chatId,
 
-                        photo: photoUrl,
+                        chat_id:
+                            chatId,
 
-                        caption: caption,
+                        photo:
+                            photoUrl,
 
-                        parse_mode: "HTML",
+                        caption:
+                            caption,
+
+                        parse_mode:
+                            "HTML",
+
                     }),
                 },
 
@@ -1040,6 +1114,7 @@ async function sendTelegramPhoto(
 
 
         return result;
+
 
     } catch (error) {
 
@@ -1076,8 +1151,8 @@ async function sendTelegramMediaGroup(
     }
 
 
-    // Telegram allows up to 10 items
-    // in one media group.
+    // Telegram allows up to 10 images
+    // in a single media group.
 
     const chunks = [];
 
@@ -1094,7 +1169,8 @@ async function sendTelegramMediaGroup(
     }
 
 
-    let lastResult = null;
+    let lastResult =
+        null;
 
 
     for (
@@ -1103,9 +1179,13 @@ async function sendTelegramMediaGroup(
 
         const media =
             chunk.map(url => ({
-                type: "photo",
 
-                media: url,
+                type:
+                    "photo",
+
+                media:
+                    url,
+
             }));
 
 
@@ -1130,9 +1210,13 @@ async function sendTelegramMediaGroup(
                         },
 
                         body: JSON.stringify({
-                            chat_id: chatId,
 
-                            media: media,
+                            chat_id:
+                                chatId,
+
+                            media:
+                                media,
+
                         }),
                     },
 
@@ -1163,6 +1247,7 @@ async function sendTelegramMediaGroup(
 
             lastResult =
                 result;
+
 
         } catch (error) {
 
