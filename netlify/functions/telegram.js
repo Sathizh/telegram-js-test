@@ -557,22 +557,90 @@ exports.handler = async (event) => {
 
 
         // ====================================================
-        // GET VERIFIED PROFILE PHOTO
+        // GET PROFILE ALBUM IMAGES
         // ====================================================
 
+        // verified_photo is always the main/first photo.
         const profilePhotos =
             getImageUrls(
                 profile.verified_photo
             );
 
 
+        // v_jathagam can be a comma-separated string.
+        const jathagamImages =
+            getImageUrls(
+                profile.v_jathagam
+            );
+
+
+        // v_address can also be a comma-separated string.
+        const addressImages =
+            getImageUrls(
+                profile.v_address
+            );
+
+
         // ====================================================
-        // SEND PROFILE PHOTO
+        // BUILD PROFILE ALBUM
+        // ====================================================
+
+        // Order:
+        // 1. verified_photo
+        // 2. v_jathagam images
+        // 3. v_address images
+
+        const albumImages = [
+            ...profilePhotos.slice(0, 1),
+            ...jathagamImages,
+            ...addressImages
+        ];
+
+
+        console.log(
+            "📷 Profile album images:",
+            JSON.stringify(albumImages)
+        );
+
+
+        // ====================================================
+        // SEND PROFILE ALBUM
         // ====================================================
 
         if (
+            albumImages.length >= 2
+        ) {
+
+            const albumResult =
+                await sendTelegramMediaGroup(
+                    chatId,
+                    albumImages,
+                    caption
+                );
+
+
+            if (
+                albumResult?.ok
+            ) {
+
+                console.log(
+                    `✅ Profile album sent: ${albumImages.length} image(s)`
+                );
+
+            } else {
+
+                console.error(
+                    "❌ Profile album failed"
+                );
+            }
+
+
+        } else if (
             profilePhotos.length > 0
         ) {
+
+            // Only verified_photo exists.
+            // Send it as a normal photo.
 
             const photoResult =
                 await sendTelegramPhoto(
@@ -597,8 +665,6 @@ exports.handler = async (event) => {
                 );
 
 
-                // Send caption as fallback
-
                 const fallbackResult =
                     await sendTelegramMessage(
                         chatId,
@@ -622,10 +688,13 @@ exports.handler = async (event) => {
                 }
             }
 
+
         } else {
 
+            // No photos available.
+
             console.log(
-                "⚠️ Verified photo not available"
+                "⚠️ No profile images available"
             );
 
 
@@ -650,54 +719,6 @@ exports.handler = async (event) => {
                     "❌ Profile caption failed"
                 );
             }
-        }
-
-
-        // ====================================================
-        // GET JATHAGAM IMAGE(S)
-        // ====================================================
-
-        const jathagamImages =
-            getImageUrls(
-                profile.v_jathagam
-            );
-
-
-        // ====================================================
-        // SEND JATHAGAM ALBUM
-        // ====================================================
-
-        if (
-            jathagamImages.length > 0
-        ) {
-
-            const albumResult =
-                await sendTelegramMediaGroup(
-                    chatId,
-                    jathagamImages
-                );
-
-
-            if (
-                albumResult?.ok
-            ) {
-
-                console.log(
-                    `✅ Sent ${jathagamImages.length} jathagam image(s)`
-                );
-
-            } else {
-
-                console.error(
-                    "❌ Jathagam album failed"
-                );
-            }
-
-        } else {
-
-            console.log(
-                "ℹ️ No jathagam image available"
-            );
         }
 
 
@@ -1129,12 +1150,13 @@ async function sendTelegramPhoto(
 
 
 // ============================================================
-// SEND JATHAGAM ALBUM
+// SEND TELEGRAM MEDIA GROUP
 // ============================================================
 
 async function sendTelegramMediaGroup(
     chatId,
-    imageUrls
+    imageUrls,
+    caption = null
 ) {
 
     const botToken =
@@ -1151,7 +1173,20 @@ async function sendTelegramMediaGroup(
     }
 
 
-    // Telegram allows up to 10 images
+    if (
+        !Array.isArray(imageUrls) ||
+        imageUrls.length < 2
+    ) {
+
+        console.error(
+            "❌ At least 2 images are required for a media group"
+        );
+
+        return null;
+    }
+
+
+    // Telegram allows up to 10 photos
     // in a single media group.
 
     const chunks = [];
@@ -1164,7 +1199,10 @@ async function sendTelegramMediaGroup(
     ) {
 
         chunks.push(
-            imageUrls.slice(i, i + 10)
+            imageUrls.slice(
+                i,
+                i + 10
+            )
         );
     }
 
@@ -1174,23 +1212,49 @@ async function sendTelegramMediaGroup(
 
 
     for (
-        const chunk of chunks
+        let chunkIndex = 0;
+        chunkIndex < chunks.length;
+        chunkIndex++
     ) {
 
+        const chunk =
+            chunks[chunkIndex];
+
+
         const media =
-            chunk.map(url => ({
+            chunk.map(
+                (url, index) => {
 
-                type:
-                    "photo",
+                    const item = {
+                        type: "photo",
+                        media: url,
+                    };
 
-                media:
-                    url,
 
-            }));
+                    // Put the profile caption only
+                    // on the first photo of the first group.
+
+                    if (
+                        chunkIndex === 0 &&
+                        index === 0 &&
+                        caption
+                    ) {
+
+                        item.caption =
+                            caption;
+
+                        item.parse_mode =
+                            "HTML";
+                    }
+
+
+                    return item;
+                }
+            );
 
 
         console.log(
-            `📤 Sending jathagam album: ${media.length} image(s)`
+            `📤 Sending profile album: ${media.length} image(s)`
         );
 
 
@@ -1239,7 +1303,7 @@ async function sendTelegramMediaGroup(
             ) {
 
                 console.error(
-                    "❌ Telegram rejected jathagam album:",
+                    "❌ Telegram rejected profile album:",
                     result.description
                 );
             }
