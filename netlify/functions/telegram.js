@@ -2,8 +2,7 @@
 // NETLIFY TELEGRAM PROFILE BOT
 // ============================================================
 
-const NITHRA_API_URL =
-    "https://app.nithramatrimony.net/api/getfullview";
+const NITHRA_API_URL = "https://app.nithramatrimony.net/api/getfullview";
 
 const API_TIMEOUT_MS = 15000;
 const TELEGRAM_TIMEOUT_MS = 15000;
